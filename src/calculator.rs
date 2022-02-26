@@ -1,14 +1,35 @@
 pub struct Calculator;
 
 impl Calculator {
-    fn calculate(operations: Vec<Operation>) -> Result<isize, String> {
-        operations
+    fn calculate(expression: Expression) -> Result<isize, String> {
+        expression
+            .0
             .into_iter()
             .try_fold(0, |x: isize, item: Operation| match item {
-                Operation::Add(y) => Ok(Calculator::add(x, y)),
-                Operation::Subtract(y) => Ok(Calculator::subtract(x, y)),
-                Operation::Multiply(y) => Ok(Calculator::multiply(x, y)),
-                Operation::Divide(y) => Calculator::divide(x, y),
+                Operation::Add(o) => match o {
+                    Operand::Value(y) => Ok(Calculator::add(x, y)),
+                    Operand::Expression(e) => {
+                        Calculator::calculate(e).map(|y| Calculator::add(x, y))
+                    }
+                },
+                Operation::Subtract(o) => match o {
+                    Operand::Value(y) => Ok(Calculator::subtract(x, y)),
+                    Operand::Expression(e) => {
+                        Calculator::calculate(e).map(|y| Calculator::subtract(x, y))
+                    }
+                },
+                Operation::Multiply(o) => match o {
+                    Operand::Value(y) => Ok(Calculator::multiply(x, y)),
+                    Operand::Expression(e) => {
+                        Calculator::calculate(e).map(|y| Calculator::multiply(x, y))
+                    }
+                },
+                Operation::Divide(o) => match o {
+                    Operand::Value(y) => Calculator::divide(x, y),
+                    Operand::Expression(e) => {
+                        Calculator::calculate(e).and_then(|y| Calculator::divide(x, y))
+                    }
+                },
             })
     }
 
@@ -33,16 +54,30 @@ impl Calculator {
     }
 }
 
+pub struct Expression(Vec<Operation>);
+
+impl From<Vec<Operation>> for Expression {
+    fn from(operations: Vec<Operation>) -> Self {
+        Expression(operations)
+    }
+}
+
 pub enum Operation {
-    Add(isize),
-    Subtract(isize),
-    Multiply(isize),
-    Divide(isize),
+    Add(Operand),
+    Subtract(Operand),
+    Multiply(Operand),
+    Divide(Operand),
+}
+
+pub enum Operand {
+    Value(isize),
+    Expression(Expression),
 }
 
 #[cfg(test)]
 mod tests {
     use super::Calculator;
+    use super::Operand::*;
     use super::Operation::*;
 
     #[test]
@@ -72,20 +107,41 @@ mod tests {
 
     #[test]
     fn calculation_behaves_correctly() {
-        assert_eq!(Calculator::calculate(vec![Add(1), Add(2)]).unwrap(), 3);
         assert_eq!(
-            Calculator::calculate(vec![Add(1), Subtract(2)]).unwrap(),
+            Calculator::calculate(vec![Add(Value(1)), Add(Value(2))].into()).unwrap(),
+            3
+        );
+        assert_eq!(
+            Calculator::calculate(vec![Add(Value(1)), Subtract(Value(2))].into()).unwrap(),
             -1
         );
         assert_eq!(
-            Calculator::calculate(vec![Add(8), Multiply(2)]).unwrap(),
+            Calculator::calculate(vec![Add(Value(8)), Multiply(Value(2))].into()).unwrap(),
             16
         );
-        assert_eq!(Calculator::calculate(vec![Add(10), Divide(5)]).unwrap(), 2);
+        assert_eq!(
+            Calculator::calculate(vec![Add(Value(10)), Divide(Value(5))].into()).unwrap(),
+            2
+        );
     }
 
     #[test]
     fn calculation_behaves_correctly_with_zero_divisor() {
-        assert!(Calculator::calculate(vec![Add(5), Divide(0)]).is_err());
+        assert!(Calculator::calculate(vec![Add(Value(5)), Divide(Value(0))].into()).is_err());
+    }
+
+    #[test]
+    fn calculation_can_handle_nested_expressions() {
+        assert_eq!(
+            Calculator::calculate(
+                vec![
+                    Add(Value(5)),
+                    Add(Expression(vec![Add(Value(4)), Divide(Value(2))].into()))
+                ]
+                .into()
+            )
+            .unwrap(),
+            7
+        );
     }
 }
