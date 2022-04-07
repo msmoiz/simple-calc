@@ -93,7 +93,7 @@ impl Calculator {
                     }
                     match next.unwrap() {
                         Token::Operand(_) => (),
-                        Token::LeftParen => todo!(),
+                        Token::LeftParen => (),
                         next_token => {
                             return Err(Error::InvalidExpression(format!(
                                 "operator {:?} followed by invalid token {:?}",
