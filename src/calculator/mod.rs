@@ -1,12 +1,21 @@
-//! Todo list:
-//! * Switch from string errors to module-specific enum
+mod types;
 
 use std::collections::HashMap;
+
+use self::types::{Error, Operator, Result, Token};
 
 pub struct Calculator;
 
 impl Calculator {
-    pub fn evaluate(input: &str) -> Result<isize, String> {
+    /// Evalutes an input string containing a mathematical expression in
+    /// infix notation. Returns the result of the computation or an error
+    /// in case of tokenization, validation, or computation failures.
+    /// It is capable of handling expressions that contain the following elements;
+    /// all other elements are unsupported at this time:
+    /// * Integers
+    /// * Operands (binary): +, -, *, /
+    /// * Parentheses
+    pub fn evaluate(input: &str) -> Result<isize> {
         let infix_expression = Calculator::tokenize_expression(input)?;
         Calculator::validate_expression(&infix_expression)?;
         let postfix_expression = Calculator::marshal_infix_expression_to_postfix(infix_expression)?;
@@ -17,7 +26,7 @@ impl Calculator {
     /// Takes an input string and tokenizes it into a mathematical expression
     /// composed of operators and operands. This function does validate the
     /// characters passed as input, but it does not validate the resultant expression.
-    fn tokenize_expression(input: &str) -> Result<Vec<Token>, String> {
+    fn tokenize_expression(input: &str) -> Result<Vec<Token>> {
         let mut output: Vec<Token> = vec![];
         let mut chars = input.chars().enumerate().peekable();
         while let Some((i, char)) = chars.next() {
@@ -41,10 +50,7 @@ impl Calculator {
                     '(' => output.push(Token::LeftParen),
                     ')' => output.push(Token::RightParen),
                     ' ' => continue,
-                    _ => return Err(format!(
-                        "Encountered invalid character '{}' at position {} of input expression '{}'",
-                        char, i, input
-                    )),
+                    _ => return Err(Error::InvalidCharacter(char, i)),
                 }
             }
         }
@@ -55,9 +61,9 @@ impl Calculator {
     /// like making sure that operators have operands on both sides and
     /// making sure that there are no consecutive operands. It also checks
     /// for zero-length expression. It does not handle parentheses matching validation.  
-    fn validate_expression(expression: &[Token]) -> Result<(), String> {
+    fn validate_expression(expression: &[Token]) -> Result<()> {
         if expression.is_empty() {
-            return Err("Found zero-length expression, which cannot be evaluated".into());
+            return Err(Error::ZeroLengthExpression);
         }
         let mut tokens = expression.iter().peekable();
         let mut previous: Option<&Token> = None;
@@ -66,29 +72,33 @@ impl Calculator {
             match token {
                 Token::Operand(operand) => {
                     if let Some(Token::Operand(next_operand)) = next {
-                        return Err(format!("Found operand {:?} followed by operand {:?}, with no intervening operator", operand, next_operand));
+                        return Err(Error::InvalidExpression(format!(
+                            "consecutive operands {:?}, {:?}",
+                            operand, next_operand
+                        )));
                     }
                 }
                 Token::Operator(operator) => {
                     if previous.is_none() {
-                        return Err(format!(
-                            "Found operator {:?} with no leading operand",
+                        return Err(Error::InvalidExpression(format!(
+                            "operator {:?} with no leading operand",
                             operator
-                        ));
+                        )));
                     }
                     if next.is_none() {
-                        return Err(format!(
-                            "Found operator {:?} with no trailing operand",
+                        return Err(Error::InvalidExpression(format!(
+                            "operator {:?} with no trailing operand",
                             operator
-                        ));
+                        )));
                     }
                     match next.unwrap() {
                         Token::Operand(_) => (),
                         Token::LeftParen => todo!(),
                         next_token => {
-                            return Err(format!(
-                            "Found operand {:?} followed by token {:?}, with no intervening operand", operator, next_token
-                        ));
+                            return Err(Error::InvalidExpression(format!(
+                                "operator {:?} followed by invalid token {:?}",
+                                operator, next_token
+                            )));
                         }
                     }
                 }
@@ -103,7 +113,7 @@ impl Calculator {
     /// otherwise known as postfix notation (2 2 +), using the shunting-yard algorithm:
     /// https://en.wikipedia.org/wiki/Shunting-yard_algorithm. This function performs
     /// no validation beyond parentheses matching; it assumes that the input infix expression is valid.
-    fn marshal_infix_expression_to_postfix(expression: Vec<Token>) -> Result<Vec<Token>, String> {
+    fn marshal_infix_expression_to_postfix(expression: Vec<Token>) -> Result<Vec<Token>> {
         let precedence_map = HashMap::from([
             (Operator::Add, 1),
             (Operator::Subtract, 1),
@@ -145,13 +155,13 @@ impl Calculator {
                             _ => unreachable!(),
                         }
                     }
-                    return Err("Encountered mismatched parentheses in expression".into());
+                    return Err(Error::MismatchedParentheses);
                 }
             }
         }
         while let Some(operator) = operator_stack.pop() {
             if operator.eq(&Token::LeftParen) {
-                return Err("Encountered mismatched parentheses in expression".into());
+                return Err(Error::MismatchedParentheses);
             }
             output.push(operator);
         }
@@ -171,7 +181,7 @@ impl Calculator {
     /// and it will panic if the input is invalid (e.g., '+ 3 2`). It will also
     /// panic on a zero-length expression. As such, input should be validated before
     /// being passed to this function.
-    fn evaluate_postfix_expression(expression: Vec<Token>) -> Result<isize, String> {
+    fn evaluate_postfix_expression(expression: Vec<Token>) -> Result<isize> {
         let mut operand_stack: Vec<isize> = vec![];
         for token in expression {
             match token {
@@ -211,35 +221,18 @@ impl Calculator {
         a * b
     }
 
-    fn divide(a: isize, b: isize) -> Result<isize, String> {
+    fn divide(a: isize, b: isize) -> Result<isize> {
         if b == 0 {
-            return Err(format!("Attempting to divide by zero: {} / {}", a, b));
+            return Err(Error::DivideByZero(a, b));
         }
         Ok(a / b)
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum Operator {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Token {
-    Operand(isize),
-    Operator(Operator),
-    LeftParen,
-    RightParen,
-}
-
 #[cfg(test)]
 mod tests {
+    use super::types::*;
     use super::Calculator;
-    use super::Operator;
-    use super::Token;
 
     #[test]
     fn addition_behaves_correctly() {
