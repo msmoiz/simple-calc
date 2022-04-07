@@ -7,7 +7,7 @@ simple-calc is a command line calculator that consumes input expressions and out
 * Learning more about parsing terminology, like postfix notation, and algorithms, like the shunting-yard algorithm
 * Getting comfortable with error handling using `Result`s instead of exceptions
 
-It can be used for scripting or as an interactive tool. Below is a example of the tool in action.
+It can be used for scripting or as an interactive tool. Below is an example of the tool in action.
 
 ```shell
 $ simple-calc "128 - (8 * 16 / ((3 + 1) / 2))"
