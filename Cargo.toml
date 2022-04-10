@@ -1,5 +1,8 @@
 [package]
 name = "simple-calc"
+description = "A simple command line calculator"
+license = "MIT"
+repository = "https://github.com/msmoiz/simple-calc"
 version = "0.1.0"
 edition = "2021"
 
