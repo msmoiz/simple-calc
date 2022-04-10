@@ -30,3 +30,14 @@ The result is 3.
 >> exit
 Thanks for using simple-calc. Peace.
 ```
+
+## Development
+
+The following commands are used most frequently during development:
+
+```shell
+cargo build # build (development)
+cargo test # execute tests
+cargo run # run (will build as well)
+cargo install # install to local machine
+```
